@@ -148,6 +148,42 @@ steps/train_lda_mllt.sh --cmd "$train_cmd" \
 # Align a 10k utts subset using the tri2b model
 steps/align_si.sh  --nj 10 --cmd "$train_cmd" --use-graphs true \
   data/train_10k data/lang_nosp exp/tri2b exp/tri2b_ali_10k
+  
+#############################################################################################################################
+#  Do MMI on top of LDA+MLLT.
+steps/make_denlats.sh --nj 8 --cmd "$train_cmd" \
+  data/train_10k data/lang_nosp exp/tri2b exp/tri2b_denlats
+steps/train_mmi.sh  data/train_10k data/lang_nosp exp/tri2b_ali_10k exp/tri2b_denlats exp/tri2b_mmi
+  for test in test_clean test_other dev_clean dev_other; do
+    steps/decode.sh --config conf/decode.config --iter 4 --nj 20 --cmd "$decode_cmd" \
+	  exp/tri2b/graph_nosp_tgsmall data/$test exp/tri2b_mmi/decode_it4
+	steps/decode.sh --config conf/decode.config --iter 3 --nj 20 --cmd "$decode_cmd" \
+	  exp/tri2b/graph_nosp_tgsmall data/$test exp/tri2b_mmi/decode_it3
+  done
+
+
+# Do the same with boosting.
+steps/train_mmi.sh --boost 0.05 data/train_10k data/lang_nosp \
+   exp/tri2b_ali_10k exp/tri2b_denlats exp/tri2b_mmi_b0.05
+     for test in test_clean test_other dev_clean dev_other; do
+		steps/decode.sh --config conf/decode.config --iter 4 --nj 20 --cmd "$decode_cmd" \
+		   exp/tri2b/graph_nosp_tgsmall data/$test exp/tri2b_mmi_b0.05/decode_it4_$test
+		steps/decode.sh --config conf/decode.config --iter 3 --nj 20 --cmd "$decode_cmd" \
+		   exp/tri2b/graph_nosp_tgsmall data/$test exp/tri2b_mmi_b0.05/decode_it3_$test
+	done
+
+# Do MPE.
+steps/train_mpe.sh data/train_10k data/lang_nosp exp/tri2b_ali_10k exp/tri2b_denlats exp/tri2b_mpe
+     for test in test_clean test_other dev_clean dev_other; do
+		steps/decode.sh --config conf/decode.config --iter 4 --nj 20 --cmd "$decode_cmd" \
+		   exp/tri2b/graph_nosp_tgsmall data/$test exp/tri2b_mpe/decode_it4_$test
+		steps/decode.sh --config conf/decode.config --iter 3 --nj 20 --cmd "$decode_cmd" \
+		   exp/tri2b/graph_nosp_tgsmall data/$test exp/tri2b_mpe/decode_it3_$test
+	done
+
+
+#############################################################################################################################
+
 
 # Train tri3b, which is LDA+MLLT+SAT on 10k utts
 steps/train_sat.sh --cmd "$train_cmd" 2500 15000 \
@@ -173,6 +209,84 @@ steps/train_sat.sh --cmd "$train_cmd" 2500 15000 \
 steps/align_fmllr.sh --nj 20 --cmd "$train_cmd" \
   data/train_clean_100 data/lang_nosp \
   exp/tri3b exp/tri3b_ali_clean_100
+
+###########################################################################################################################################
+# # We have now added a script that will help you find portions of your data that
+# # has bad transcripts, so you can filter it out.  Below we demonstrate how to
+# # run this script.
+# steps/cleanup/find_bad_utts.sh --nj 20 --cmd "$train_cmd" data/train data/lang \
+#   exp/tri3b_ali exp/tri3b_cleanup
+# # The following command will show you some of the hardest-to-align utterances in the data.
+# head  exp/tri3b_cleanup/all_info.sorted.txt
+
+## MMI on top of tri3b (i.e. LDA+MLLT+SAT+MMI)
+steps/make_denlats.sh --config conf/decode.config \
+   --nj 8 --cmd "$train_cmd" --transform-dir exp/tri3b_ali_clean_100 \
+  data/train_clean_100 data/lang_nosp exp/tri3b exp/tri3b_denlats
+steps/train_mmi.sh data/train_clean_100 data/lang_nosp exp/tri3b_ali_clean_100 exp/tri3b_denlats exp/tri3b_mmi
+
+  for test in test_clean test_other dev_clean dev_other; do
+      steps/decode_fmllr.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
+		  --alignment-model exp/tri3b/final.alimdl --adapt-model exp/tri3b/final.mdl \
+		   exp/tri3b/graph_nosp_tgsmall data/$test exp/tri3b_mmi/decode_$test
+
+		# Do a decoding that uses the exp/tri3b/decode directory to get transforms from.
+		steps/decode.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
+		  --transform-dir exp/tri3b/decode  exp/tri3b/graph_nosp_tgsmall data/$test exp/tri3b_mmi/decode2_$test
+  done
+
+#first, train UBM for fMMI experiments.
+steps/train_diag_ubm.sh --silence-weight 0.5 --nj 8 --cmd "$train_cmd" \
+  250 data/train_clean_100 data/lang_nosp exp/tri3b_ali_clean_100 exp/dubm3b
+
+# Next, various fMMI+MMI configurations.
+steps/train_mmi_fmmi.sh --learning-rate 0.0025 \
+  --boost 0.1 --cmd "$train_cmd" data/train_clean_100 data/lang_nosp exp/tri3b_ali_clean_100 exp/dubm3b exp/tri3b_denlats \
+  exp/tri3b_fmmi_b
+
+for iter in 3 4 5 6 7 8; do
+  for test in test_clean test_other dev_clean dev_other; do
+	 steps/decode_fmmi.sh --nj 20 --config conf/decode.config --cmd "$decode_cmd" --iter $iter \
+	   --transform-dir exp/tri3b/decode_nosp_tgsmall_$test  exp/tri3b/graph_nosp_tgsmall data/$test exp/tri3b_fmmi_b/decode_it$iter_$test &
+	done
+done
+
+steps/train_mmi_fmmi.sh --learning-rate 0.001 \
+  --boost 0.1 --cmd "$train_cmd" data/train_clean_100 data/lang_nosp exp/tri3b_ali_clean_100 exp/dubm3b exp/tri3b_denlats \
+  exp/tri3b_fmmi_c
+
+for iter in 3 4 5 6 7 8; do
+  for test in test_clean test_other dev_clean dev_other; do
+	steps/decode_fmmi.sh --nj 20 --config conf/decode.config --cmd "$decode_cmd" --iter $iter \
+      --transform-dir exp/tri3b/decode_nosp_tgsmall_$test  exp/tri3b/graph_nosp_tgsmall data/$test exp/tri3b_fmmi_c/decode_it$iter_$test &
+   done
+ 
+done
+
+# for indirect one, use twice the learning rate.
+steps/train_mmi_fmmi_indirect.sh --learning-rate 0.01 --schedule "fmmi fmmi fmmi fmmi mmi mmi mmi mmi" \
+  --boost 0.1 --cmd "$train_cmd" data/train_clean_100 data/lang_nosp exp/tri3b_ali_clean_100 exp/dubm3b exp/tri3b_denlats \
+  exp/tri3b_fmmi_d
+
+for iter in 3 4 5 6 7 8; do
+   for test in test_clean test_other dev_clean dev_other; do
+		steps/decode_fmmi.sh --nj 20 --config conf/decode.config --cmd "$decode_cmd" --iter $iter \
+		  --transform-dir exp/tri3b/decode_nosp_tgsmall_$test  exp/tri3b/graph_nosp_tgsmall data/$test exp/tri3b_fmmi_d/decode_it$iter_$test &
+	done
+done
+
+# Demo of "raw fMLLR"
+local/run_raw_fmllr.sh
+
+
+# You don't have to run all 2 of the below, e.g. you can just run the run_sgmm2.sh
+local/run_sgmm2.sh
+# Karel's CNN recipe.
+local/nnet/run_cnn.sh
+
+  
+###########################################################################################################################################
+
 
 # train another LDA+MLLT+SAT system on the entire 100 hour subset
 steps/train_sat.sh  --cmd "$train_cmd" 4200 40000 \
@@ -238,6 +352,8 @@ utils/build_const_arpa_lm.sh \
 # align train_clean_100 using the tri4b model
 steps/align_fmllr.sh --nj 30 --cmd "$train_cmd" \
   data/train_clean_100 data/lang exp/tri4b exp/tri4b_ali_clean_100
+  
+  
 
 #~ # if you want at this point you can train and test NN model(s) on the 100 hour
 #~ # subset
