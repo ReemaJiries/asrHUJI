@@ -19,7 +19,7 @@ dev=data-fbank/test
 train=data-fbank/train
 
 dev_original=data/test
-train_original=data/train
+train_original=data/train_10k
 
 gmm=exp/tri3b
 
@@ -31,6 +31,9 @@ set -euxo pipefail
 # Make the FBANK features,
 [ ! -e $dev ] && if [ $stage -le 0 ]; then
   # Dev set
+    for test in test_clean test_other dev_clean dev_other; do
+      utils/copy_data_dir.sh data/$test $dev || exit 1; rm $dev/{cmvn,feats}.scp
+  done
   utils/copy_data_dir.sh $dev_original $dev || exit 1; rm $dev/{cmvn,feats}.scp
   steps/make_fbank_pitch.sh --nj 10 --cmd "$train_cmd" \
      $dev $dev/log $dev/data || exit 1;
