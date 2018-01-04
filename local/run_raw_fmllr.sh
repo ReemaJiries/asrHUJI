@@ -1,55 +1,75 @@
+
 #!/bin/bash
 
 . ./cmd.sh
 
 steps/align_raw_fmllr.sh --nj 8 --cmd "$train_cmd" --use-graphs true \
-    data/train data/lang exp/tri2b exp/tri2b_ali_raw
+    data/train_10k data/lang_nosp exp/tri2b exp/tri2b_ali_raw
 
-steps/train_raw_sat.sh 1800 9000 data/train data/lang exp/tri2b_ali_raw exp/tri3c || exit 1;
+steps/train_raw_sat.sh 1800 9000 data/train_10k data/lang_nosp exp/tri2b_ali_raw exp/tri3c || exit 1;
 
-utils/mkgraph.sh data/lang exp/tri3c exp/tri3c/graph
-utils/mkgraph.sh data/lang_ug exp/tri3c exp/tri3c/graph_ug
+utils/mkgraph.sh data/lang_nosp exp/tri3c exp/tri3c/graph
+#utils/mkgraph.sh data/lang_ug exp/tri3c exp/tri3c/graph_ug
 
-steps/decode_raw_fmllr.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
-   exp/tri3c/graph data/test exp/tri3c/decode
+  for test in test_clean test_other dev_clean dev_other; do
+	steps/decode_raw_fmllr.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
+	   exp/tri3c/graph data/$test exp/tri3c/decode_$test
 
-steps/decode_raw_fmllr.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
-   exp/tri3c/graph_ug data/test exp/tri3c/decode_ug
+	#steps/decode_raw_fmllr.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
+	#   exp/tri3c/graph_ug data/$test exp/tri3c/decode_ug
 
-steps/decode_raw_fmllr.sh --use-normal-fmllr true --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
-   exp/tri3c/graph data/test exp/tri3c/decode_2fmllr
+	steps/decode_raw_fmllr.sh --use-normal-fmllr true --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
+	   exp/tri3c/graph data/$test exp/tri3c/decode_2fmllr_$test
 
-steps/decode_raw_fmllr.sh --use-normal-fmllr true --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
-   exp/tri3c/graph_ug data/test exp/tri3c/decode_2fmllr_ug
+	#steps/decode_raw_fmllr.sh --use-normal-fmllr true --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
+	#  exp/tri3c/graph_ug data/$test exp/tri3c/decode_2fmllr_ug		  
+		  
+  done
 
-steps/align_raw_fmllr.sh --nj 8 --cmd "$train_cmd" data/train data/lang exp/tri3c exp/tri3c_ali
+
+steps/align_raw_fmllr.sh --nj 8 --cmd "$train_cmd" data/train_10k data/lang_nosp exp/tri3c exp/tri3c_ali
 
 
                                         
                                                                     
 if [ ! -f exp/ubm4c/final.mdl ]; then
-  steps/train_ubm.sh --silence-weight 0.5 --cmd "$train_cmd" 400 data/train data/lang exp/tri3c_ali exp/ubm4c || exit 1;
+  steps/train_ubm.sh --silence-weight 0.5 --cmd "$train_cmd" 400 data/train_10k data/lang_nosp exp/tri3c_ali exp/ubm4c || exit 1;
 fi
-steps/train_sgmm2.sh  --cmd "$train_cmd" 5000 7000 data/train data/lang exp/tri3c_ali exp/ubm4c/final.ubm exp/sgmm2_4c || exit 1;
+steps/train_sgmm2.sh  --cmd "$train_cmd" 5000 7000 data/train_10k data/lang_nosp exp/tri3c_ali exp/ubm4c/final.ubm exp/sgmm2_4c || exit 1;
 
-utils/mkgraph.sh data/lang exp/sgmm2_4c exp/sgmm2_4c/graph || exit 1;
-utils/mkgraph.sh data/lang_ug exp/sgmm2_4c exp/sgmm2_4c/graph_ug || exit 1;
+utils/mkgraph.sh data/lang_nosp exp/sgmm2_4c exp/sgmm2_4c/graph || exit 1;
+#utils/mkgraph.sh data/lang_ug exp/sgmm2_4c exp/sgmm2_4c/graph_ug || exit 1;
 
-steps/decode_sgmm2.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
-  --transform-dir exp/tri3c/decode  exp/sgmm2_4c/graph data/test exp/sgmm2_4c/decode || exit 1;
+  for test in test_clean test_other dev_clean dev_other; do
+	steps/decode_raw_fmllr.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
+	   exp/tri3c/graph data/$test exp/tri3c/decode_$test
 
-steps/decode_sgmm2.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
-  --transform-dir exp/tri3c/decode_ug  exp/sgmm2_4c/graph_ug data/test exp/sgmm2_4c/decode_ug || exit 1;
+	#steps/decode_raw_fmllr.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
+	#   exp/tri3c/graph_ug data/$test exp/tri3c/decode_ug
 
-steps/decode_sgmm2.sh --use-fmllr true --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
-  --transform-dir exp/tri3c/decode  exp/sgmm2_4c/graph data/test exp/sgmm2_4c/decode_fmllr || exit 1;
- 
+	steps/decode_raw_fmllr.sh --use-normal-fmllr true --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
+	   exp/tri3c/graph data/$test exp/tri3c/decode_2fmllr_$test
+
+	#steps/decode_raw_fmllr.sh --use-normal-fmllr true --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
+	#  exp/tri3c/graph_ug data/$test exp/tri3c/decode_2fmllr_ug		
+	
+	steps/decode_sgmm2.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
+	  --transform-dir exp/tri3c/decode_$test  exp/sgmm2_4c/graph data/$test exp/sgmm2_4c/decode_$test || exit 1;
+
+	#steps/decode_sgmm2.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
+	#  --transform-dir exp/tri3c/decode_ug  exp/sgmm2_4c/graph_ug data/test exp/sgmm2_4c/decode_ug || exit 1;
+
+	steps/decode_sgmm2.sh --use-fmllr true --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
+	  --transform-dir exp/tri3c/decode_$test  exp/sgmm2_4c/graph data/$test exp/sgmm2_4c/decode_fmllr_$test || exit 1;
+ 	    
+  done
+
 
 exit 0;
 
 
 # (# get scaled-by-30 versions of the vecs to be used for nnet training.
-#   . path.sh 
+#   . ./path.sh
 #   mkdir -p exp/sgmm2_4c_x30
 #   cat exp/sgmm2_4c/vecs.* | copy-vector ark:- ark,t:- | \
 #    awk -v scale=30.0 '{printf("%s [ ", $1); for (n=3;n<NF;n++) { printf("%f ", scale*$n); } print "]"; }' > exp/sgmm2_4c_x30/vecs.1
