@@ -15,10 +15,10 @@ steps/train_sgmm2.sh --cmd "$train_cmd" 5000 7000 data/train_10k data/lang_nosp 
 utils/mkgraph.sh data/lang_nosp exp/sgmm2_4a exp/sgmm2_4a/graph || exit 1;
  for test in test_clean test_other dev_clean dev_other; do
 	steps/decode_sgmm2.sh --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
-	  --transform-dir exp/tri3b/decode_$test  exp/sgmm2_4a/graph data/$test exp/sgmm2_4a/decode_$test || exit 1;
+	  --transform-dir exp/tri3b/decode_nosp_tgsmall_$test  exp/sgmm2_4a/graph data/$test exp/sgmm2_4a/decode_$test || exit 1;
 
 	steps/decode_sgmm2.sh --use-fmllr true --config conf/decode.config --nj 20 --cmd "$decode_cmd" \
-	  --transform-dir exp/tri3b/decode_$test  exp/sgmm2_4a/graph data/$test exp/sgmm2_4a/decode_fmllr_$test || exit 1;
+	  --transform-dir exp/tri3b/decode_nosp_tgsmall_$test  exp/sgmm2_4a/graph data/$test exp/sgmm2_4a/decode_fmllr_$test || exit 1;
   done
 
  # Now we'll align the SGMM system to prepare for discriminative training.
@@ -31,8 +31,9 @@ utils/mkgraph.sh data/lang_nosp exp/sgmm2_4a exp/sgmm2_4a/graph || exit 1;
 
  for iter in 1 2 3 4; do
 	  for test in test_clean test_other dev_clean dev_other; do
+	  	itTest=$iter_$test
 		steps/decode_sgmm2_rescore.sh --cmd "$decode_cmd" --iter $iter \
-		--transform-dir exp/tri3b/decode_$test data/lang_nosp data/$test exp/sgmm2_4a/decode_$test exp/sgmm2_4a_mmi_b0.2/decode_it$iter_$test &
+		--transform-dir exp/tri3b/decode_nosp_tgsmall_$test data/lang_nosp data/$test exp/sgmm2_4a/decode_$test exp/sgmm2_4a_mmi_b0.2/decode_it$iTest &
 
 	  done
  done  
@@ -42,8 +43,9 @@ utils/mkgraph.sh data/lang_nosp exp/sgmm2_4a exp/sgmm2_4a/graph || exit 1;
 
  for iter in 1 2 3 4; do
 	 for test in test_clean test_other dev_clean dev_other; do
+		itTest=$iter_$test
 		steps/decode_sgmm2_rescore.sh --cmd "$decode_cmd" --iter $iter \
-			--transform-dir exp/tri3b/decode_$test data/lang_nosp data/$test exp/sgmm2_4a/decode_$test exp/sgmm2_4a_mmi_b0.2_x/decode_it$iter_$test &
+			--transform-dir exp/tri3b/decode_nosp_tgsmall_$test data/lang_nosp data/$test exp/sgmm2_4a/decode_$test exp/sgmm2_4a_mmi_b0.2_x/decode_it$itTest &
 
 	  done
  done  
@@ -51,7 +53,7 @@ utils/mkgraph.sh data/lang_nosp exp/sgmm2_4a exp/sgmm2_4a/graph || exit 1;
 wait 
 
  for test in test_clean test_other dev_clean dev_other; do
-	steps/decode_combine.sh data/$test data/lang_nosp exp/tri1/decode_$test exp/tri2a/decode_$test exp/combine_1_2a/decode_$test || exit 1;
+	steps/decode_combine.sh data/$test data/lang_nosp exp/tri1/decode_nosp_tgsmall_$test exp/tri2a/decode_$test exp/combine_1_2a/decode_$test || exit 1;
 	steps/decode_combine.sh data/$test data/lang_nosp exp/sgmm2_4a/decode_$test exp/tri3b_mmi/decode_$test exp/combine_sgmm2_4a_3b/decode_$test || exit 1;
 	# combining the sgmm run and the best MMI+fMMI run.
 	steps/decode_combine.sh data/$test data/lang_nosp exp/sgmm2_4a/decode_$test exp/tri3b_fmmi_c/decode_it5_$test exp/combine_sgmm2_4a_3b_fmmic5/decode_$test || exit 1;
