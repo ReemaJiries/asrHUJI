@@ -34,10 +34,9 @@ for test in test_clean test_other dev_clean dev_other; do
 	# Make the FBANK features,
 	itDev=$dev_$test
 	itOther=$dev_original_$test
-	[ ! -e $dev ] && if [ $stage -le 0 ]; then
+	[ ! -e $itDev ] && if [ $stage -le 0 ]; then
 		# Dev set
 		utils/copy_data_dir.sh data/$test $itDev || exit 1; rm $itDev/{cmvn,feats}.scp
-		utils/copy_data_dir.sh $itOther $itDev || exit 1; rm $itDev/{cmvn,feats}.scp
 		steps/make_fbank_pitch.sh --nj 10 --cmd "$train_cmd" \
 		 $itDev $itDev/log $itDev/data || exit 1;
 		steps/compute_cmvn_stats.sh $itDev $itDev/log $itDev/data || exit 1;
@@ -57,7 +56,7 @@ done
 hid_layers=2
 if [ $stage -le 1 ]; then
   dir=exp/cnn4c
-  ali=${gmm}_ali
+  ali=${gmm}_ali_clean_100
   # Train
   $cuda_cmd $dir/log/train_nnet.log \
     steps/nnet/train.sh \
@@ -68,10 +67,10 @@ if [ $stage -le 1 ]; then
       ${train}_tr90 ${train}_cv10 data/lang_nosp $ali $ali $dir || exit 1;
   # Decode,
   for test in test_clean test_other dev_clean dev_other; do
-	  itDev=$dev_$test
-	  itOther=$dev_original_$test
+	itDev=$dev_$test
+	itOther=$dev_original_$test
        steps/nnet/decode.sh --nj 20 --cmd "$decode_cmd" --config conf/decode_dnn.config --acwt 0.1 \
-    $gmm/graph $it $dir/decode_$test || exit 1;
+    $gmm/graph_nosp_tgsmall $it $dir/decode_$test || exit 1;
   done
  
 fi
@@ -124,7 +123,7 @@ if [ $stage -le 5 ]; then
     for test in test_clean test_other dev_clean dev_other; do
 	  itDev=$dev_$test
         steps/nnet/decode.sh --nj 20 --cmd "$decode_cmd" --config conf/decode_dnn.config --acwt 0.1 \
-    $gmm/graph $itDev $dir/decode_$test || exit 1;
+    $gmm/graph_nosp_tgsmall $itDev $dir/decode_$test || exit 1;
   done
  
 fi
@@ -156,7 +155,7 @@ if [ $stage -le 7 ]; then
 		iterDev=$ITER$dev
 		steps/nnet/decode.sh --nj 20 --cmd "$decode_cmd" --config conf/decode_dnn.config \
       --nnet $dir/${ITER}.nnet --acwt $acwt \
-      $gmm/graph $itDev $dir/decode_it${iterDev} || exit 1
+      $gmm/graph_nosp_tgsmall $itDev $dir/decode_it${iterDev} || exit 1
 	  done    
   done 
 fi
