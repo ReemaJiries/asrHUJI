@@ -32,8 +32,8 @@ set -euxo pipefail
 
 for test in test_clean test_other dev_clean dev_other; do
 	# Make the FBANK features,
-	itDev=$dev_$test
-	itOther=$dev_original_$test
+            itDev=${dev}_$test
+            itOther=${dev_original}_$test
 	[ ! -e $itDev ] && if [ $stage -le 0 ]; then
 		# Dev set
 		utils/copy_data_dir.sh data/$test $itDev || exit 1; rm $itDev/{cmvn,feats}.scp
@@ -67,8 +67,8 @@ if [ $stage -le 1 ]; then
       ${train}_tr90 ${train}_cv10 data/lang_nosp $ali $ali $dir || exit 1;
   # Decode,
   for test in test_clean test_other dev_clean dev_other; do
-	itDev=$dev_$test
-	itOther=$dev_original_$test
+           itDev=${dev}_$test
+           itOther=${dev_original}_$test
        steps/nnet/decode.sh --nj 20 --cmd "$decode_cmd" --config conf/decode_dnn.config --acwt 0.1 \
     $gmm/graph_nosp_tgsmall $it $dir/decode_$test || exit 1;
   done
@@ -121,7 +121,7 @@ if [ $stage -le 5 ]; then
     ${train}_tr90 ${train}_cv10 data/lang_nosp $ali $ali $dir || exit 1;
   # Decode (reuse HCLG graph)
     for test in test_clean test_other dev_clean dev_other; do
-	  itDev=$dev_$test
+        itDev=${dev}_$test
         steps/nnet/decode.sh --nj 20 --cmd "$decode_cmd" --config conf/decode_dnn.config --acwt 0.1 \
     $gmm/graph_nosp_tgsmall $itDev $dir/decode_$test || exit 1;
   done
@@ -151,8 +151,8 @@ if [ $stage -le 7 ]; then
   # Decode
   for ITER in 1 3 6; do
       for test in test_clean test_other dev_clean dev_other; do
-		itDev=$dev_$test
-		iterDev=$ITER$dev
+		itDev=${dev}_$test
+		iterDev=${ITER}$dev
 		steps/nnet/decode.sh --nj 20 --cmd "$decode_cmd" --config conf/decode_dnn.config \
       --nnet $dir/${ITER}.nnet --acwt $acwt \
       $gmm/graph_nosp_tgsmall $itDev $dir/decode_it${iterDev} || exit 1
