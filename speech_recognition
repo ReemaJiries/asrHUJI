@@ -1,0 +1,3 @@
+scripts of using an Existing CNN Recognizer for Decoding in Kaldi
+input: audio files
+output: text files
